@@ -30,22 +30,22 @@ from titans_pytorch import (
 # constants
 
 NUM_BATCHES = int(1e5)
-BATCH_SIZE = 4
-GRADIENT_ACCUMULATE_EVERY = 4
+BATCH_SIZE = 2
+GRADIENT_ACCUMULATE_EVERY = 8
 LEARNING_RATE = 2e-4
-VALIDATE_EVERY  = 100
-GENERATE_EVERY  = 500
+VALIDATE_EVERY  = 50
+GENERATE_EVERY  = 50
 PRIME_LENGTH = 100
 GENERATE_LENGTH = 512
 SHOULD_GENERATE = True
-SEQ_LEN = 512
+SEQ_LEN = 256
 
 # neural memory related
 
 NEURAL_MEMORY_DEPTH = 2
 NUM_PERSIST_MEM = 4
 NUM_LONGTERM_MEM = 4
-NEURAL_MEM_LAYERS = (2, 4, 6)                   # layers 2, 4, 6 have neural memory, can add more
+NEURAL_MEM_LAYERS = (2, 4)                       # layers 2, 4 have neural memory (reduced for 16GB GPU)
 NEURAL_MEM_GATE_ATTN_OUTPUT = False
 NEURAL_MEM_MOMENTUM = True
 NEURAL_MEM_MOMENTUM_ORDER = 1
@@ -54,7 +54,7 @@ NEURAL_MEM_MAX_LR = 1e-1
 USE_MEM_ATTENTION_MODEL = False
 WINDOW_SIZE = 32
 NEURAL_MEM_SEGMENT_LEN = 4                      # set smaller for more granularity for learning rate / momentum etc
-NEURAL_MEM_BATCH_SIZE = 128                     # set smaller to update the neural memory weights more often as it traverses the sequence
+NEURAL_MEM_BATCH_SIZE = 64                      # set smaller to update the neural memory weights more often as it traverses the sequence
 SLIDING_WINDOWS = True
 STORE_ATTN_POOL_CHUNKS = True                   # whether to use attention pooling for chunk derived momentum, per-layer lr mod, decay
 MEMORY_MODEL_PER_LAYER_LEARNED_LR = True
@@ -71,8 +71,8 @@ WANDB_ONLINE = False # turn this on to pipe experiment to cloud
 
 # perf related
 
-USE_ACCELERATED_SCAN = True
-USE_FLEX_ATTN = True
+USE_ACCELERATED_SCAN = False
+USE_FLEX_ATTN = False
 USE_FAST_INFERENCE = False
 
 # wandb experiment tracker
@@ -112,7 +112,7 @@ else:
 model = MemoryAsContextTransformer(
     num_tokens = 256,
     dim = 384,
-    depth = 8,
+    depth = 4,
     segment_len = WINDOW_SIZE,
     num_persist_mem_tokens = NUM_PERSIST_MEM,
     num_longterm_mem_tokens = NUM_LONGTERM_MEM,
