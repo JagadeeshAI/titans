@@ -142,10 +142,52 @@ model = MemoryAsContextTransformer(
 
 # prepare enwik8 data
 
+def filter_data(data):
+    # keep space (32), comma (44), dot (46), A-Z (65-90), a-z (97-122)
+    # the user requested only letters, dots, and commas. We include space for readability.
+    keep = (data == 32) | (data == 44) | (data == 46) | ((data >= 65) & (data <= 90)) | ((data >= 97) & (data <= 122))
+    return data[keep]
+
 with gzip.open('./data/enwik8.gz') as file:
     data = np.frombuffer(file.read(int(95e6)), dtype = np.uint8).copy()
-    data_train, data_val = np.split(data, [int(90e6)])
+    data = filter_data(data) # filter the raw text data first
+    data_train, data_val = np.split(data, [int(len(data) * 0.95)]) # 95% train
     data_train, data_val = map(torch.from_numpy, (data_train, data_val))
+
+# checkpoint management
+
+CHECKPOINT_DIR = './checkpoints'
+os.makedirs(CHECKPOINT_DIR, exist_ok = True)
+best_checkpoints = [] # list of (loss, filename)
+
+def manage_checkpoints(model, current_loss):
+    global best_checkpoints
+
+    # 1. Save the most recent one
+    latest_path = os.path.join(CHECKPOINT_DIR, 'latest.pth')
+    torch.save(model.state_dict(), latest_path)
+
+    # 2. Manage Top 3 Best
+    is_better = len(best_checkpoints) < 3 or current_loss < best_checkpoints[-1][0]
+
+    if is_better:
+        # Create new best checkpoint
+        checkpoint_name = f'best_loss_{current_loss:.4f}.pth'
+        checkpoint_path = os.path.join(CHECKPOINT_DIR, checkpoint_name)
+        torch.save(model.state_dict(), checkpoint_path)
+
+        best_checkpoints.append((current_loss, checkpoint_path))
+        # Sort by loss (ascending)
+        best_checkpoints.sort(key=lambda x: x[0])
+
+        # If we have more than 3, remove the worst one
+        if len(best_checkpoints) > 3:
+            worst_loss, worst_path = best_checkpoints.pop(-1)
+            if os.path.exists(worst_path):
+                os.remove(worst_path)
+
+        print(f"Top {len(best_checkpoints)} Best Checkpoints: {[f'{l:.4f}' for l, _ in best_checkpoints]}")
+
 
 class TextSamplerDataset(Dataset):
     def __init__(self, data, seq_len):
@@ -188,14 +230,17 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval = 10., desc = 'training'):
     if i % VALIDATE_EVERY == 0:
         model.eval()
         with torch.no_grad():
-            loss = model(next(val_loader), return_loss = True)
-            print(f'validation loss: {loss.item():.4f}')
+            val_loss = model(next(val_loader), return_loss = True)
+            print(f'validation loss: {val_loss.item():.4f}')
+            manage_checkpoints(model, val_loss.item())
+
 
     if SHOULD_GENERATE and i % GENERATE_EVERY == 0:
         model.eval()
         inp = random.choice(val_dataset)[:PRIME_LENGTH]
         prime = decode_tokens(inp)
-        print(f'%s \n\n %s', (prime, '*' * 100))
+        print(f'\n[Prompt]: {prime}\n{"*" * 100}')
+
 
         sample = model.sample(inp[None, ...], GENERATE_LENGTH, use_cache = USE_FAST_INFERENCE)
         output_str = decode_tokens(sample[0])
